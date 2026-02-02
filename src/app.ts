@@ -1,39 +1,56 @@
 import express from "express";
 import mongoose from "mongoose";
-interface App_Interface {
+import routes from "./routes";
+
+interface IApp {
   startServer(): void;
-  connectDatabase(): void;
+  connectDatabase(): Promise<void>;
+  initializeMiddleware(): void;
   initializeRoutes(): void;
 }
 
-export default class App implements App_Interface {
-  Port: number | string;
-  app: express.Application;
-  url: string;
+export default class App implements IApp {
+  private port: number | string;
+  private app: express.Application;
+  private mongoUri: string;
+
   constructor() {
-    this.Port = 8000;
+    this.port = process.env.PORT || 8000;
+    this.mongoUri = process.env.MONGO_URI || "";
+
+    if (!this.mongoUri) {
+      throw new Error("MONGO_URI env nahi diya");
+    }
     this.app = express();
-    this.url = "";
-    this.startServer();
-    this.connectDatabase();
+
+    this.initializeMiddleware();
     this.initializeRoutes();
+    this.connectDatabase();
+    this.startServer();
   }
 
-  startServer(): void {
-    this.app.listen(this.Port, () => {
-      console.log(`server is on http://localhost:${this.Port}`);
-    });
+  initializeMiddleware(): void {
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
+  }
+
+  initializeRoutes(): void {
+    this.app.use("/api", routes);
   }
 
   async connectDatabase(): Promise<void> {
     try {
-      await mongoose.connect("");
+      await mongoose.connect(this.mongoUri);
+      console.log("Database connected");
     } catch (error) {
-      console.log("Database connection failed", error);
+      console.error("Database connection failed:", error);
+      process.exit(1);
     }
   }
 
-  initializeRoutes(): void {
-    this.app.use(express.json());
+  startServer(): void {
+    this.app.listen(this.port, () => {
+      console.log(`Server running at http://localhost:${this.port}`);
+    });
   }
 }
